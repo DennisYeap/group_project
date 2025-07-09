@@ -1,5 +1,51 @@
 <?php include 'db.php'; ?>
-<?php include 'header.php'; ?>
+<?php
+if (isset($_GET['action'])) {
+  header('Content-Type: application/json');
+  if ($_GET['action'] === 'events') {
+    $result = $conn->query("SELECT match_ID as id, location as title, match_datetime as start FROM Matches WHERE match_status = 'Scheduled'");
+    $events = [];
+    while ($row = $result->fetch_assoc()) {
+      $events[] = $row;
+    }
+    echo json_encode($events);
+    exit;
+  }
+
+  if ($_GET['action'] === 'announcements') {
+    $result = $conn->query("SELECT * FROM Announcements ORDER BY created_at DESC");
+    $announcements = [];
+    while ($row = $result->fetch_assoc()) {
+      $announcements[] = $row;
+    }
+    echo json_encode($announcements);
+    exit;
+  }
+
+  if ($_GET['action'] === 'locations') {
+    $dateFilter = $_GET['date'] ?? 'all';
+    $upcoming = isset($_GET['upcoming']) && $_GET['upcoming'] == 1;
+    $sql = "SELECT location, match_datetime FROM Matches WHERE match_status = 'Scheduled' AND location IS NOT NULL";
+    if ($dateFilter !== 'all') {
+      $sql .= " AND DATE(match_datetime) = '" . $conn->real_escape_string($dateFilter) . "'";
+    }
+    if ($upcoming) {
+      $sql .= " AND match_datetime >= NOW()";
+    }
+    $result = $conn->query($sql);
+    $locations = [];
+    while ($row = $result->fetch_assoc()) {
+      $locations[] = $row;
+    }
+    echo json_encode($locations);
+    exit;
+  }
+  echo json_encode(['error' => 'Invalid action']);
+  exit;
+}
+include 'header.php';
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -331,50 +377,3 @@ fetch('main.php?action=announcements')
 </body>
 </html>
 <?php include 'footer.php'; ?>
-
-<?php
-// Handle API responses directly from this file
-if (isset($_GET['action'])) {
-  header('Content-Type: application/json');
-  if ($_GET['action'] === 'events') {
-    $result = $conn->query("SELECT match_ID as id, location as title, match_datetime as start FROM Matches WHERE match_status = 'Scheduled'");
-    $events = [];
-    while ($row = $result->fetch_assoc()) {
-      $events[] = $row;
-    }
-    echo json_encode($events);
-    exit;
-  }
-
-  if ($_GET['action'] === 'announcements') {
-    $result = $conn->query("SELECT * FROM Announcements ORDER BY created_at DESC");
-    $announcements = [];
-    while ($row = $result->fetch_assoc()) {
-      $announcements[] = $row;
-    }
-    echo json_encode($announcements);
-    exit;
-  }
-
-  if ($_GET['action'] === 'locations') {
-    $dateFilter = $_GET['date'] ?? 'all';
-    $upcoming = isset($_GET['upcoming']) && $_GET['upcoming'] == 1;
-    $sql = "SELECT location, match_datetime FROM Matches WHERE match_status = 'Scheduled' AND location IS NOT NULL";
-    if ($dateFilter !== 'all') {
-      $sql .= " AND DATE(match_datetime) = '" . $conn->real_escape_string($dateFilter) . "'";
-    }
-    if ($upcoming) {
-      $sql .= " AND match_datetime >= NOW()";
-    }
-    $result = $conn->query($sql);
-    $locations = [];
-    while ($row = $result->fetch_assoc()) {
-      $locations[] = $row;
-    }
-    echo json_encode($locations);
-    exit;
-  }
-  echo json_encode(['error' => 'Invalid action']);
-  exit;
-}
-?>
