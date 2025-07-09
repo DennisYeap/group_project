@@ -1,4 +1,59 @@
-<?php include 'db.php'; ?>
+<?php
+include 'db.php';
+
+if (isset($_GET['action'])) {
+  header('Content-Type: application/json');
+
+  if ($_GET['action'] === 'events') {
+    $sql = "SELECT match_ID as id, location as title, match_datetime as start FROM Matches WHERE match_status = 'Scheduled'";
+    $result = $conn->query($sql);
+
+    $events = [];
+    while ($row = $result->fetch_assoc()) {
+      $events[] = $row;
+    }
+    echo json_encode($events);
+    exit;
+  }
+
+  if ($_GET['action'] === 'announcements') {
+    $sql = "SELECT * FROM Announcements ORDER BY created_at DESC";
+    $result = $conn->query($sql);
+
+    $announcements = [];
+    while ($row = $result->fetch_assoc()) {
+      $announcements[] = $row;
+    }
+    echo json_encode($announcements);
+    exit;
+  }
+
+  if ($_GET['action'] === 'locations') {
+    $dateFilter = $_GET['date'] ?? 'all';
+    $upcoming = isset($_GET['upcoming']) && $_GET['upcoming'] == 1;
+
+    $sql = "SELECT location, match_datetime FROM Matches WHERE match_status = 'Scheduled' AND location IS NOT NULL";
+    if ($dateFilter !== 'all') {
+      $sql .= " AND DATE(match_datetime) = '" . $conn->real_escape_string($dateFilter) . "'";
+    }
+    if ($upcoming) {
+      $sql .= " AND match_datetime >= NOW()";
+    }
+
+    $result = $conn->query($sql);
+    $locations = [];
+    while ($row = $result->fetch_assoc()) {
+      $locations[] = $row;
+    }
+    echo json_encode($locations);
+    exit;
+  }
+
+  echo json_encode(['error' => 'Invalid action']);
+  exit;
+}
+?>
+
 <?php include 'header.php'; ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -22,12 +77,11 @@
   </section>
 
   <section>
-  <h2>Latest Announcements</h2>
-  <div id="announcements"></div>
-</section>
-</main>
+    <h2>Latest Announcements</h2>
+    <div id="announcements"></div>
+  </section>
 
- <section>
+  <section>
     <h2>Nearby Match Locations</h2>
     <div class="map-controls">
       <label for="dateFilter">Filter by Date:</label>
@@ -51,6 +105,7 @@
     </div>
     <div id="map"></div>
   </section>
+</main>
 
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAbxyQcCKsnyn1T_pKvmdMyjVlpk0oa0LE&libraries=places&callback=initMap" async defer></script>
@@ -79,7 +134,7 @@ function loadMapData() {
   const date = document.getElementById("dateFilter").value;
   const upcoming = document.getElementById("upcomingToggle").checked ? 1 : 0;
 
-  fetch(`get-locations.php?date=${date}&upcoming=${upcoming}`)
+  fetch(`index.php?action=locations&date=${date}&upcoming=${upcoming}`)
     .then(res => res.json())
     .then(data => {
       allLocations = data;
@@ -114,19 +169,15 @@ function renderMarkers(locations) {
 function filterMarkers() {
   const query = document.getElementById("searchInput").value.toLowerCase();
   allMarkers.forEach(({ marker, location }) => {
-    if (location.includes(query)) {
-      marker.setMap(map);
-    } else {
-      marker.setMap(null);
-    }
+    marker.setMap(location.includes(query) ? map : null);
   });
 }
 
- document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function () {
   const calendarEl = document.getElementById('calendar');
   const calendar = new FullCalendar.Calendar(calendarEl, {
     initialView: 'dayGridMonth',
-    events: 'events.php',
+    events: 'index.php?action=events',
     eventTimeFormat: {
       hour: 'numeric',
       minute: '2-digit',
@@ -136,7 +187,7 @@ function filterMarkers() {
   calendar.render();
 });
 
-fetch('get-announcements.php')
+fetch('index.php?action=announcements')
   .then(response => response.json())
   .then(data => {
     const container = document.getElementById('announcements');
@@ -156,7 +207,6 @@ fetch('get-announcements.php')
   .catch(err => {
     document.getElementById('announcements').innerHTML = "<p>⚠️ Failed to load announcements.</p>";
   });
-
 </script>
 
 </body>
